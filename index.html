@@ -697,6 +697,7 @@
                                             activeSessionId = Number(sessions[sessions.length - 1].id);
                                         }
                                         isDataLoaded = true;
+                                        startRealtimeSync();
                                         if(callback) callback();
                                     });
                                 });
@@ -705,6 +706,31 @@
                     });
                 });
             });
+        }
+
+        // Keeps timing-critical data (session times, winning numbers, closed/lock status, limits)
+        // instantly synced in the background via Firebase's real-time listener, so a check made
+        // right at a session's closing moment always uses the freshest data instead of a stale
+        // copy loaded once at app start.
+        function startRealtimeSync() {
+            try {
+                db.ref('2d_sessions').on('value', (snap) => {
+                    let v = snap.val();
+                    if (v !== null && v !== undefined) sessions = v;
+                });
+                db.ref('2d_winning').on('value', (snap) => {
+                    let v = snap.val();
+                    if (v !== null && v !== undefined) winningNumbers = v;
+                });
+                db.ref('2d_closed_numbers').on('value', (snap) => {
+                    let v = snap.val();
+                    if (v !== null && v !== undefined) closedNumbersData = v;
+                });
+                db.ref('2d_limits').on('value', (snap) => {
+                    let v = snap.val();
+                    if (v !== null && v !== undefined) limitsData = v;
+                });
+            } catch(e) {}
         }
 
         function showMessage(msg) {
