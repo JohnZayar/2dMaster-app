@@ -576,32 +576,39 @@
         const cloudSync = {
             get(key, callback) {
                 let localData = localStorage.getItem('cache_' + key);
+                let answered = false;
                 if (localData) {
+                    answered = true;
                     try { callback(JSON.parse(localData)); } catch(e) {}
                 }
 
+                // Safety fallback: only fires if Firebase hasn't answered within 4s (true offline case)
+                let safetyTimer = setTimeout(() => {
+                    if (!answered) { answered = true; callback(null); }
+                }, 4000);
+
                 try {
                     db.ref(key).once('value', (snapshot) => {
+                        clearTimeout(safetyTimer);
                         let val = snapshot.val();
                         if (val !== null && val !== undefined) {
                             let strVal = JSON.stringify(val);
-                            if (localData !== strVal) {
-                                localStorage.setItem('cache_' + key, strVal);
+                            localStorage.setItem('cache_' + key, strVal);
+                            if (localData !== strVal || !answered) {
+                                answered = true;
                                 callback(val);
                             }
-                        }
-                    }, (error) => {});
-                } catch(e) {}
-
-                if (!localData) {
-                    setTimeout(() => {
-                        let fallback = localStorage.getItem('cache_' + key);
-                        if (fallback) {
-                            try { callback(JSON.parse(fallback)); } catch(e) {}
-                        } else {
+                        } else if (!answered) {
+                            answered = true;
                             callback(null);
                         }
-                    }, 20);
+                    }, (error) => {
+                        clearTimeout(safetyTimer);
+                        if (!answered) { answered = true; callback(null); }
+                    });
+                } catch(e) {
+                    clearTimeout(safetyTimer);
+                    if (!answered) { answered = true; callback(null); }
                 }
             },
             set(key, value, callback) {
