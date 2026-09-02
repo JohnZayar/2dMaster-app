@@ -1,4 +1,4 @@
-const CACHE_NAME = '2d-agent-cache-v213';
+const CACHE_NAME = '2d-agent-cache-v214';
 const urlsToCache = [
   './',
   './index.html'
@@ -29,16 +29,19 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+// Network-first: always fetch the latest version from the server so updates
+// (new features, bug fixes) show up immediately. Only fall back to the
+// cached copy when the network request fails (e.g. no internet connection).
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then(response => {
-        if (response) {
-          return response;
-        }
-        return fetch(event.request).catch(() => {
-          // Fallback for offline support if needed
+        let responseClone = response.clone();
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, responseClone);
         });
+        return response;
       })
+      .catch(() => caches.match(event.request))
   );
 });
